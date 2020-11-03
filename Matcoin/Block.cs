@@ -13,5 +13,7 @@ namespace Matcoin
         public string DifficultyTarget { get; set; }
         public string Nonce { get; set; }
         public List<Transaction> Transactions { get; set; }
+        public string Hash { get; set; }
+        public List<String> TransIDs { get; set; }
     }
 }

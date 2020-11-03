@@ -11,5 +11,6 @@ namespace Matcoin
         public string get_key { get; set; }
         public double value { get; set; }
 
+        public bool taken = false;
     }
 }
