@@ -70,10 +70,23 @@ namespace Matcoin
             return IDs;
         }
 
-        static Block GenerateUnfinishedBlocks(List<String> ChosenIDs)
+        static Block GenerateUnfinishedBlocks(List<String> ChosenIDs, Hash.Hash hashuok, List<Transaction> Trans)
         {
             Block temp = new Block();
-
+            while(ChosenIDs.Count > 1)
+            {
+                List<String> Hashedtrans = new List<String>();
+                for (int i = 0; i < ChosenIDs.Count; i=+2)
+                {
+                    
+                    string tempString = Trans[int.Parse(ChosenIDs[i])].ID + Trans[int.Parse(ChosenIDs[i+1])].ID;
+                    hashuok.Value = tempString;
+                    Hashedtrans.Add(hashuok.FingerPrint);
+                    
+                }
+                ChosenIDs = Hashedtrans;
+            }
+            Console.WriteLine(ChosenIDs.Count);
             return temp;
         }
         static void Main(string[] args)
@@ -95,7 +108,7 @@ namespace Matcoin
             {
                 ChosenIDs.Clear();
                 ChosenIDs = ChooseTrans(Trans, hashuok);
-                NBlocks.Add(GenerateUnfinishedBlocks(ChosenIDs));
+                NBlocks.Add(GenerateUnfinishedBlocks(ChosenIDs, hashuok, Trans));
             }
             
         }
