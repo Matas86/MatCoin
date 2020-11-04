@@ -11,7 +11,7 @@ namespace Matcoin
         public string Date { get; set; }
         public string Version { get; set; }
         public string DifficultyTarget { get; set; }
-        public string Nonce { get; set; }
+        public double Nonce { get; set; }
         public List<Transaction> Transactions { get; set; }
         public string Hash { get; set; }
         public List<String> TransIDs { get; set; }
