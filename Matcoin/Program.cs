@@ -4,29 +4,51 @@ using System.Data;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Xml.Schema;
 
 namespace Matcoin
 {
     class Program
     {
-
-        static Block Mine(Block temp, Hash.Hash hashuok)
+        //core counter
+        static int numberOfCores = Environment.ProcessorCount / 2;
+        static Block Mine(List<Block> tempBlocks, Hash.Hash hashuok, int triesAllowed, int timeAllowed)
         {
+            Console.WriteLine("Limitations - Tries: " + triesAllowed + " Time: " + timeAllowed + " ms");
+            Block minedBlock = new Block();
             var watch = System.Diagnostics.Stopwatch.StartNew();
             //guessing Hash
-            while (!temp.Hash.StartsWith(temp.DifficultyTarget))
+            Parallel.ForEach(tempBlocks, (Block temp, ParallelLoopState state) =>
             {
-                temp.Nonce += 1;
-                string baseStr = temp.PrevBlockHash + temp.Date + temp.Version + temp.MerkelRootHash + temp.Nonce + temp.DifficultyTarget + temp.Nonce;
-                hashuok.Value = baseStr;
-                temp.Hash = hashuok.FingerPrint;
-            }
-            var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine("YOU HAVE MINED A BLOCK");
-            Console.WriteLine("Blocks hash was: " + temp.Hash);
-            Console.WriteLine("The time mining took: " + elapsedMs + " ms");
-            return temp;
+                for (int i = 0; i < triesAllowed; i++)
+                {
+                    if (watch.ElapsedMilliseconds > timeAllowed)
+                    {
+                        state.Break();
+                    }
+                    temp.Nonce += 1;
+                    string baseStr = temp.PrevBlockHash + temp.Date + temp.Version + temp.MerkelRootHash + temp.Nonce + temp.DifficultyTarget + temp.Nonce;
+                    hashuok.Value = baseStr;
+                    temp.Hash = hashuok.FingerPrint;
+                    if(temp.Hash.StartsWith(temp.DifficultyTarget))
+                    {
+                        
+                        var elapsedMs = watch.ElapsedMilliseconds;
+                        Console.WriteLine("YOU HAVE MINED A BLOCK");
+                        Console.WriteLine("Blocks hash was: " + temp.Hash);
+                        //Console.WriteLine("The time mining took: " + elapsedMs + " ms");
+                        Console.WriteLine("Mined on thread: " + Thread.CurrentThread.ManagedThreadId);
+                        minedBlock = temp;
+                        state.Break();
+                    }
+                }
+
+
+            });
+
+            return minedBlock;
 
         }
         static string BuildMerkleRoot(List<String> merkelLeaves, Hash.Hash hashuok)
@@ -235,7 +257,7 @@ namespace Matcoin
             temp.PrevBlockHash = "";
             //setting other parameters of header
             temp.Nonce = 0;
-            temp.DifficultyTarget = "00000";
+            temp.DifficultyTarget = "000000";
             temp.Version = "1.0";
             temp.Hash = "";
 
@@ -244,6 +266,7 @@ namespace Matcoin
         }
         static void Main(string[] args)
         {
+            //Console.WriteLine(numberOfCores);
             //creating users
             List<User> Users;
 
@@ -255,19 +278,55 @@ namespace Matcoin
             Trans = CreateTransactions(Users, hashuok);
 
             List<String> ChosenIDs = new List<string>();
-            List<Block> NBlocks = new List<Block>();
+            //List<Block> NBlocks = new List<Block>();
             List<Block> DoneBlocks = new List<Block>();
 
             while (Trans.Count > 0)
             {
+                //creating empty block to save the mined block into
+                Block baigtas = new Block();
                 //Console.WriteLine("\n\n" + Trans.Count + "\n\n");
                 ChosenIDs.Clear();
                 ChosenIDs = ChooseTrans(Trans);
-                var tempBlock = GenerateUnfinishedBlocks(ChosenIDs, hashuok, Trans, Users);
+                List<Block> tempBlocks = new List<Block>();
+                bool trying = true;
+                Block tempBlock = new Block();
+                //Creating 6 random blocks
+                for (int i = 0; i < 6; i++)
+                {
+                    tempBlock = GenerateUnfinishedBlocks(ChosenIDs, hashuok, Trans, Users);
+                    tempBlocks.Add(tempBlock);
+                }
+                int timeAllowed = 5000;
+                int triesAllowed = 200000;
+
+
+                //trying to mine six blocks parallel
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                while (trying)
+                {
+                    tempBlock = Mine(tempBlocks, hashuok, triesAllowed, timeAllowed);
+                    if (tempBlock.Hash != null)
+                    {
+                        trying = false;
+                        baigtas = tempBlock;
+
+                    }
+                    if (trying)
+                    {
+                        timeAllowed += timeAllowed;
+                        triesAllowed += triesAllowed;
+                    }
+
+                }
+
+                var elapsedMs = watch.ElapsedMilliseconds;
+                Console.WriteLine("Time taken for a mine: " + elapsedMs + " ms");
+
                 //Console.WriteLine(tempBlock.Transactions.Count);
                 //checking for all of the transactions validation
                 CheckforChangedTrans(tempBlock);
-                var baigtas = Mine(tempBlock, hashuok);
+
                 if (DoneBlocks.Count == 0)
                 {
                     baigtas.PrevBlockHash = "00000000000000000000000000000000";
@@ -276,8 +335,11 @@ namespace Matcoin
                 {
                     baigtas.PrevBlockHash = DoneBlocks[DoneBlocks.Count - 1].Hash;
                 }
-                int getter = -1;
+
+                int getter = new int();
+
                 int sender = -1;
+
                 foreach (var tran in baigtas.TransIDs)
                 {
                     for (int i = 0; i < Trans.Count; i++)
