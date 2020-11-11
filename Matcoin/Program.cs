@@ -122,11 +122,57 @@ namespace Matcoin
                     IDs.Add(i.ToString());
                 }
             }
-            
+
             return IDs;
         }
+        static void CheckforChangedTrans(Block tempBlock)
+        {
+            int counter = 0;
+            for (int i = 0; i < tempBlock.TransIDs.Count; i++)
+            {
 
-        static Block GenerateUnfinishedBlocks(List<String> ChosenIDs, Hash.Hash hashuok, List<Transaction> Trans, List<Block> NBlocks)
+                bool valid = false;
+                foreach (var item in tempBlock.Transactions)
+                {
+                    if (item.ID == tempBlock.TransIDs[i])
+                    {
+                        valid = true;
+                    }
+                }
+                if (valid)
+                {
+                    counter++;
+                }
+                else
+                {
+                    Console.WriteLine("Transaction with real ID: " + tempBlock.TransIDs[i] + "has been changed.");
+                    Console.WriteLine("Searching for fake transaction...");
+                    for (int j = 0; j < tempBlock.Transactions.Count; j++)
+                    {
+                        bool found = false;
+                        foreach (var item in tempBlock.TransIDs)
+                        {
+                            if (tempBlock.Transactions[i].ID == item)
+                            {
+                                found = true;
+                            }
+                        }
+                        if (!found)
+                        {
+                            Console.WriteLine("The fake one is: " + tempBlock.Transactions[i].ID);
+                            Console.WriteLine("Removing it from the block...");
+                            var removed = tempBlock.Transactions.Remove(tempBlock.Transactions[i]);
+                            if (removed)
+                            {
+                                Console.WriteLine("Successfully removed!");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        static Block GenerateUnfinishedBlocks(List<String> ChosenIDs, Hash.Hash hashuok, List<Transaction> Trans, List<User> Users)
         {
             //Create empty block
             Block temp = new Block();
@@ -137,10 +183,51 @@ namespace Matcoin
             temp.Transactions = new List<Transaction>();
             foreach (var item in ChosenIDs)
             {
-                Hashedtrans.Add(Trans[int.Parse(item)].ID);
-                var tempas = Trans[Convert.ToInt32(item)];
-                Trans[Convert.ToInt32(item)].taken = true;
-                temp.Transactions.Add(tempas);
+                //checking for transaction validation
+
+                for (int i = 0; i < Trans.Count; i++)
+                {
+                    bool valid = false;
+                    int getter = -1;
+                    int sender = -1;
+                    if (Trans[int.Parse(item)].ID == Trans[i].ID)
+                    {
+                        //found sender and getter of the transaction
+                        for (int j = 0; j < Users.Count; j++)
+                        {
+                            if (Trans[i].get_key == Users[j].PublicKey)
+                            {
+                                getter = j;
+                                if (sender != -1)
+                                {
+                                    break;
+                                }
+                            }
+                            if (Trans[i].send_key == Users[j].PublicKey)
+                            {
+                                sender = j;
+                                if (getter != -1)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (Users[sender].Balance >= Trans[int.Parse(item)].value)
+                        {
+                            valid = true;
+                        }
+                    }
+                    //adding trasanction
+                    if (valid)
+                    {
+                        Hashedtrans.Add(Trans[int.Parse(item)].ID);
+                        var tempas = Trans[Convert.ToInt32(item)];
+                        Trans[Convert.ToInt32(item)].taken = true;
+                        temp.Transactions.Add(tempas);
+                    }
+
+                }
             }
             temp.TransIDs = Hashedtrans;
             temp.MerkelRootHash = BuildMerkleRoot(Hashedtrans, hashuok);
@@ -171,13 +258,15 @@ namespace Matcoin
             List<Block> NBlocks = new List<Block>();
             List<Block> DoneBlocks = new List<Block>();
 
-            while(Trans.Count > 0)
+            while (Trans.Count > 0)
             {
                 //Console.WriteLine("\n\n" + Trans.Count + "\n\n");
                 ChosenIDs.Clear();
                 ChosenIDs = ChooseTrans(Trans);
-                var tempBlock = GenerateUnfinishedBlocks(ChosenIDs, hashuok, Trans, NBlocks);
-
+                var tempBlock = GenerateUnfinishedBlocks(ChosenIDs, hashuok, Trans, Users);
+                //Console.WriteLine(tempBlock.Transactions.Count);
+                //checking for all of the transactions validation
+                CheckforChangedTrans(tempBlock);
                 var baigtas = Mine(tempBlock, hashuok);
                 if (DoneBlocks.Count == 0)
                 {
@@ -228,10 +317,10 @@ namespace Matcoin
                             break;
                         }
                     }
-                DoneBlocks.Add(baigtas);
+                    DoneBlocks.Add(baigtas);
+                }
             }
-        }
 
+        }
     }
-}
 }
