@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.VisualBasic.FileIO;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -14,41 +16,74 @@ namespace Matcoin
     {
         //core counter
         static int numberOfCores = Environment.ProcessorCount / 2;
-        static Block Mine(List<Block> tempBlocks, Hash.Hash hashuok, int triesAllowed, int timeAllowed)
+
+        static Block Mine(ConcurrentBag<Block> tempBlocks, Hash.Hash hashuok, int triesAllowed, int timeAllowed)
         {
+            Object lockMe = new Object();
             Console.WriteLine("Limitations - Tries: " + triesAllowed + " Time: " + timeAllowed + " ms");
-            Block minedBlock = new Block();
+            List<Block> minedblocks = new List<Block>();
+            CancellationTokenSource cts = new CancellationTokenSource();
+
+            ParallelOptions po = new ParallelOptions();
+            po.MaxDegreeOfParallelism = numberOfCores;
+            po.CancellationToken = cts.Token;
+
             var watch = System.Diagnostics.Stopwatch.StartNew();
             //guessing Hash
-            Parallel.ForEach(tempBlocks, (Block temp, ParallelLoopState state) =>
+            Parallel.ForEach(tempBlocks, po, (Block temp, ParallelLoopState state) =>
             {
+
                 for (int i = 0; i < triesAllowed; i++)
                 {
+                    if (state.ShouldExitCurrentIteration)
+                    {
+                        state.Break();
+                    }
+
                     if (watch.ElapsedMilliseconds > timeAllowed)
                     {
                         state.Break();
                     }
+
                     temp.Nonce += 1;
+
                     string baseStr = temp.PrevBlockHash + temp.Date + temp.Version + temp.MerkelRootHash + temp.Nonce + temp.DifficultyTarget + temp.Nonce;
+
                     hashuok.Value = baseStr;
+
                     temp.Hash = hashuok.FingerPrint;
-                    if(temp.Hash.StartsWith(temp.DifficultyTarget))
+
+                    if (temp.Hash.StartsWith(temp.DifficultyTarget))
                     {
-                        
                         var elapsedMs = watch.ElapsedMilliseconds;
-                        Console.WriteLine("YOU HAVE MINED A BLOCK");
-                        Console.WriteLine("Blocks hash was: " + temp.Hash);
-                        //Console.WriteLine("The time mining took: " + elapsedMs + " ms");
-                        Console.WriteLine("Mined on thread: " + Thread.CurrentThread.ManagedThreadId);
-                        minedBlock = temp;
+
+                        Console.WriteLine("Temp block that has been mined hash: " + temp.Hash);
+
+                        lock (lockMe)
+                        {
+                            minedblocks.Add(temp);
+                        }
+
                         state.Break();
                     }
                 }
-
-
             });
 
-            return minedBlock;
+
+            if (minedblocks.Count > 0)
+            {
+                Console.WriteLine("YOU HAVE MINED A BLOCK");
+                Console.WriteLine("Blocks hash was: " + minedblocks.First().Hash);
+                return minedblocks.First();
+            }
+            else
+            {
+                var blc = new Block();
+                blc.Hash = null;
+                return blc;
+
+            }
+
 
         }
         static string BuildMerkleRoot(List<String> merkelLeaves, Hash.Hash hashuok)
@@ -257,7 +292,7 @@ namespace Matcoin
             temp.PrevBlockHash = "";
             //setting other parameters of header
             temp.Nonce = 0;
-            temp.DifficultyTarget = "000000";
+            temp.DifficultyTarget = "00000";
             temp.Version = "1.0";
             temp.Hash = "";
 
@@ -288,7 +323,7 @@ namespace Matcoin
                 //Console.WriteLine("\n\n" + Trans.Count + "\n\n");
                 ChosenIDs.Clear();
                 ChosenIDs = ChooseTrans(Trans);
-                List<Block> tempBlocks = new List<Block>();
+                ConcurrentBag<Block> tempBlocks = new ConcurrentBag<Block>();
                 bool trying = true;
                 Block tempBlock = new Block();
                 //Creating 6 random blocks
