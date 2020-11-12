@@ -14,14 +14,15 @@ namespace Matcoin
 {
     class Program
     {
-        //core counter
+        //core count divided by two
         static int numberOfCores = Environment.ProcessorCount / 2;
 
-        static Block Mine(ConcurrentBag<Block> tempBlocks, Hash.Hash hashuok, int triesAllowed, int timeAllowed)
+        static Block Mine(List<Block> tempBlocks, Hash.Hash hashuok, int triesAllowed, int timeAllowed)
         {
             Object lockMe = new Object();
             Console.WriteLine("Limitations - Tries: " + triesAllowed + " Time: " + timeAllowed + " ms");
-            List<Block> minedblocks = new List<Block>();
+            //Block minedblock = new Block();
+            BlockingCollection<Block> minedblock = new BlockingCollection<Block>();
             CancellationTokenSource cts = new CancellationTokenSource();
 
             ParallelOptions po = new ParallelOptions();
@@ -30,19 +31,21 @@ namespace Matcoin
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             //guessing Hash
-            Parallel.ForEach(tempBlocks, po, (Block temp, ParallelLoopState state) =>
+            
+            Parallel.ForEach(tempBlocks,
+                (Block temp, ParallelLoopState state) =>
             {
 
                 for (int i = 0; i < triesAllowed; i++)
                 {
                     if (state.ShouldExitCurrentIteration)
                     {
-                        state.Break();
+                        //state.Break();
                     }
 
                     if (watch.ElapsedMilliseconds > timeAllowed)
                     {
-                        state.Break();
+                        //state.Break();
                     }
 
                     temp.Nonce += 1;
@@ -55,34 +58,33 @@ namespace Matcoin
 
                     if (temp.Hash.StartsWith(temp.DifficultyTarget))
                     {
-                        var elapsedMs = watch.ElapsedMilliseconds;
-
+                        //lock (lockMe)
+                        //{
+                            //minedblock = temp;
+                            minedblock.Add(temp);
+                        //}
                         Console.WriteLine("Temp block that has been mined hash: " + temp.Hash);
-
-                        lock (lockMe)
-                        {
-                            minedblocks.Add(temp);
-                        }
-
                         state.Break();
                     }
                 }
-            });
+            }
+           );
+            
 
 
-            if (minedblocks.Count > 0)
+            
+            if (minedblock.Count > 0)
             {
                 Console.WriteLine("YOU HAVE MINED A BLOCK");
-                Console.WriteLine("Blocks hash was: " + minedblocks.First().Hash);
-                return minedblocks.First();
+                Console.WriteLine("Blocks hash was: " + minedblock.First().Hash);
+                return minedblock.First();
             }
             else
             {
-                var blc = new Block();
-                blc.Hash = null;
-                return blc;
-
+                return new Block();
             }
+            
+            //return minedblock;
 
 
         }
@@ -323,7 +325,7 @@ namespace Matcoin
                 //Console.WriteLine("\n\n" + Trans.Count + "\n\n");
                 ChosenIDs.Clear();
                 ChosenIDs = ChooseTrans(Trans);
-                ConcurrentBag<Block> tempBlocks = new ConcurrentBag<Block>();
+                List<Block> tempBlocks = new List<Block>();
                 bool trying = true;
                 Block tempBlock = new Block();
                 //Creating 6 random blocks
