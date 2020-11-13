@@ -24,7 +24,7 @@ namespace Matcoin
             //Block minedblock = new Block();
             BlockingCollection<Block> minedblock = new BlockingCollection<Block>();
             CancellationTokenSource cts = new CancellationTokenSource();
-
+            string hashVal = "";
             ParallelOptions po = new ParallelOptions();
             po.MaxDegreeOfParallelism = numberOfCores;
             po.CancellationToken = cts.Token;
@@ -63,7 +63,8 @@ namespace Matcoin
                             //minedblock = temp;
                             minedblock.Add(temp);
                         //}
-                        Console.WriteLine("Temp block that has been mined hash: " + temp.Hash);
+                        //Console.WriteLine("Temp block that has been mined hash: " + temp.Hash);
+                        hashVal = temp.Hash;
                         state.Break();
                     }
                 }
@@ -73,10 +74,11 @@ namespace Matcoin
 
 
             
-            if (minedblock.Count > 0)
+            if (minedblock.Count != 0)
             {
                 Console.WriteLine("YOU HAVE MINED A BLOCK");
-                Console.WriteLine("Blocks hash was: " + minedblock.First().Hash);
+                //Console.WriteLine("Blocks hash was: " + minedblock.First().Hash);
+                Console.WriteLine("Blocks hash was: " + hashVal);
                 return minedblock.First();
             }
             else
